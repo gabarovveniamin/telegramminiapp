@@ -21,30 +21,49 @@ const NavItem = ({ to, icon: Icon, label }) => {
 function App() {
   const [tg, setTg] = useState(null);
   const [isAuthorized, setIsAuthorized] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (window.Telegram?.WebApp) {
-      const tgApp = window.Telegram.WebApp;
-      tgApp.ready();
-      tgApp.expand();
-      setTg(tgApp);
-    }
+    const initTg = () => {
+      if (window.Telegram?.WebApp) {
+        const tgApp = window.Telegram.WebApp;
+        tgApp.ready();
+        tgApp.expand();
+        setTg(tgApp);
+        setIsLoading(false);
+      } else {
+        // Retry in case script is slow
+        setTimeout(initTg, 100);
+      }
+    };
+    initTg();
 
-    const handleUnauthorized = () => setIsAuthorized(false);
+    const handleUnauthorized = () => {
+      setIsAuthorized(false);
+      setIsLoading(false);
+    };
     window.addEventListener('unauthorized-access', handleUnauthorized);
     return () => window.removeEventListener('unauthorized-access', handleUnauthorized);
   }, []);
 
+  if (isLoading) {
+    return (
+      <div className="flex-center" style={{ height: '100vh', color: 'var(--text-secondary)' }}>
+        Загрузка панели...
+      </div>
+    );
+  }
+
   if (!isAuthorized) {
+    const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || 'неизвестен';
     return (
       <div className="flex-center fade-in" style={{ height: '100vh', padding: '20px', textAlign: 'center' }}>
         <div className="glass" style={{ padding: '30px' }}>
           <h2 style={{ color: 'var(--danger)', marginBottom: '10px' }}>Доступ ограничен</h2>
           <p style={{ color: 'var(--text-secondary)' }}>
-            Эта панель управления доступна только администраторам.
-            Ваш ID: {tg?.initDataUnsafe?.user?.id || 'неизвестен'}
+            Эта панель управления доступна только администраторам.<br/>Ваш ID: <b>{userId}</b>
           </p>
-          <button onClick={() => tg?.close()} className="btn btn-primary" style={{ marginTop: '20px', width: '100%' }}>
+          <button onClick={() => window.Telegram?.WebApp?.close()} className="btn btn-primary" style={{ marginTop: '20px', width: '100%' }}>
             Закрыть
           </button>
         </div>
