@@ -1,145 +1,81 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { Search, UserCircle, ChevronRight, UserMinus } from 'lucide-react';
 import api from '../api';
-import { Search, ChevronRight, Star } from 'lucide-react';
 
 const UserList = () => {
+  const navigate = useNavigate();
   const [users, setUsers] = useState([]);
-  const [query, setQuery] = useState('');
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-
-  const fetchUsers = (search = '') => {
-    setLoading(true);
-    api.get(`/users?query=${search}`)
-      .then(res => {
-        setUsers(res.data);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error(err);
-        setLoading(false);
-      });
-  };
 
   useEffect(() => {
     fetchUsers();
   }, []);
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    fetchUsers(query);
+  const fetchUsers = async () => {
+    try {
+      const response = await api.get('/api/users');
+      setUsers(response.data);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const filteredUsers = users.filter(user => 
+    (user.username?.toLowerCase() || '').includes(search.toLowerCase()) ||
+    (user.first_name?.toLowerCase() || '').includes(search.toLowerCase()) ||
+    user.id.toString().includes(search)
+  );
 
   return (
     <div className="fade-in">
-      <h2 style={{ marginBottom: '20px' }}>User Management</h2>
+      <h2 style={{ marginBottom: '20px' }}>Управление пользователями</h2>
       
-      <form onSubmit={handleSearch} className="search-form">
-        <div className="input-wrapper">
-          <Search size={18} className="search-icon" />
-          <input 
-            type="text" 
-            placeholder="Search by username or ID..." 
-            className="input"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
-        <button type="submit" className="btn btn-primary">Search</button>
-      </form>
+      <div className="search-bar glass" style={{ marginBottom: '20px', padding: '10px 15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <Search size={20} color="var(--text-secondary)" />
+        <input 
+          type="text" 
+          placeholder="Поиск по имени, @username или ID..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ background: 'none', border: 'none', color: 'white', width: '100%', outline: 'none' }}
+        />
+      </div>
 
       <div className="user-list">
         {loading ? (
-          <p>Loading users...</p>
-        ) : users.length === 0 ? (
-          <p>No users found.</p>
+          <div style={{ textAlign: 'center', padding: '40px' }}>Загрузка списка...</div>
+        ) : filteredUsers.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>Никого не нашли</div>
         ) : (
-          users.map(user => (
-            <Link key={user.user_id} to={`/users/${user.user_id}`} className="glass user-item">
-              <div className="user-avatar">
-                {user.username ? user.username[0].toUpperCase() : '?'}
+          filteredUsers.map(user => (
+            <div 
+              key={user.id} 
+              className="glass card" 
+              style={{ padding: '15px', marginBottom: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              onClick={() => navigate(`/users/${user.id}`)}
+            >
+              <div style={{ marginRight: '15px' }}>
+                <UserCircle size={40} color={user.is_premium ? 'var(--primary)' : 'var(--text-secondary)'} />
               </div>
-              <div className="user-info">
-                <div className="user-header">
-                  <span className="username">@{user.username || 'unknown'}</span>
-                  {user.is_active && <Star size={14} className="star-icon" />}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 'bold' }}>{user.first_name} {user.last_name || ''}</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  @{user.username || 'n/a'} • ID: {user.id}
                 </div>
-                <span className="user-id">ID: {user.user_id}</span>
               </div>
-              <ChevronRight size={20} className="chevron" />
-            </Link>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                {user.is_banned && <div style={{ color: 'var(--danger)', fontSize: '0.7rem', fontWeight: 'bold' }}>BLOCK</div>}
+                {user.is_premium && <div style={{ color: 'var(--success)', fontSize: '0.7rem', fontWeight: 'bold' }}>👑</div>}
+                <ChevronRight size={20} color="var(--text-secondary)" />
+              </div>
+            </div>
           ))
         )}
       </div>
-
-      <style dangerouslySetInnerHTML={{ __html: `
-        .search-form {
-          display: flex;
-          gap: 10px;
-          margin-bottom: 24px;
-        }
-        .input-wrapper {
-          position: relative;
-          flex: 1;
-        }
-        .search-icon {
-          position: absolute;
-          left: 12px;
-          top: 50%;
-          transform: translateY(-50%);
-          color: var(--text-secondary);
-        }
-        .input-wrapper .input {
-          padding-left: 40px;
-        }
-        .user-list {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-        .user-item {
-          display: flex;
-          align-items: center;
-          padding: 12px 16px;
-          text-decoration: none;
-          color: inherit;
-        }
-        .user-avatar {
-          width: 40px;
-          height: 40px;
-          border-radius: 50%;
-          background: var(--primary);
-          color: #000;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 700;
-          margin-right: 12px;
-        }
-        .user-info {
-          flex: 1;
-        }
-        .user-header {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-        }
-        .username {
-          font-weight: 600;
-          font-size: 1rem;
-        }
-        .star-icon {
-          color: #fcd34d;
-          fill: #fcd34d;
-        }
-        .user-id {
-          font-size: 0.75rem;
-          color: var(--text-secondary);
-        }
-        .chevron {
-          color: var(--text-secondary);
-        }
-      `}} />
     </div>
   );
 };

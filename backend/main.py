@@ -43,18 +43,17 @@ async def get_user(user_id: int):
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
-@app.post("/api/users/{user_id}/premium", dependencies=[Depends(get_current_admin)])
-async def toggle_premium(user_id: int, days: Optional[int] = Body(None, embed=True)):
-    await db.toggle_premium(user_id, days)
-    return {"status": "ok"}
+@app.post("/api/users/{user_id}/premium")
+async def toggle_premium(user_id: int, db: Database = Depends(get_db)):
+    await db.toggle_premium(user_id)
+    return {"status": "success"}
 
-@app.delete("/api/users/{user_id}/premium", dependencies=[Depends(get_current_admin)])
-async def deactivate_premium(user_id: int):
-    await db.deactivate_premium(user_id)
-    return {"status": "ok"}
+@app.post("/api/users/{user_id}/ban")
+async def toggle_ban(user_id: int, db: Database = Depends(get_db)):
+    await db.toggle_ban(user_id)
+    return {"status": "success"}
 
-# --- Bot Control ---
-@app.post("/api/system/restart", dependencies=[Depends(get_current_admin)])
+@app.post("/api/system/restart")
 async def restart_bot():
     try:
         # Note: This requires the user running the FastAPI app to have sudo/systemctl privileges
