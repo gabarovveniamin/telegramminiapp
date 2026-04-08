@@ -9,6 +9,9 @@ api.interceptors.request.use((config) => {
   const tg = window.Telegram?.WebApp;
   if (tg?.initData) {
     config.headers['X-TG-Data'] = tg.initData;
+  } else {
+    // If we're an environment where tg is expected but missing, this will fail at backend
+    console.warn('API call without Telegram initData');
   }
   return config;
 });

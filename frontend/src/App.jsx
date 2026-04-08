@@ -25,14 +25,14 @@ function App() {
 
   useEffect(() => {
     const initTg = () => {
-      if (window.Telegram?.WebApp) {
-        const tgApp = window.Telegram.WebApp;
+      const tgApp = window.Telegram?.WebApp;
+      if (tgApp && tgApp.initData) {
         tgApp.ready();
         tgApp.expand();
         setTg(tgApp);
         setIsLoading(false);
       } else {
-        // Retry in case script is slow
+        // Continue waiting for initData
         setTimeout(initTg, 100);
       }
     };
