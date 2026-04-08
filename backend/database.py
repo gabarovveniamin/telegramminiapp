@@ -45,14 +45,13 @@ class Database:
 
     # --- User Management ---
     async def get_users(self):
-        # Join with subscriptions if needed, but for now just get users
+        # We use username as first_name because your DB doesn't have first_name column
         rows = await self.pool.fetch("""
-            SELECT user_id as id, username, first_name, created_at 
+            SELECT user_id as id, username, created_at 
             FROM users 
             ORDER BY created_at DESC 
             LIMIT 100
         """)
-        # If first_name is missing in your DB, we'll use username
         return [dict(r) for r in rows]
 
     async def get_user(self, user_id: int):
