@@ -9,7 +9,7 @@ const System = () => {
   const handleRestart = async () => {
     if (window.confirm('Вы уверены, что хотите перезагрузить бэкенд?')) {
       try {
-        await api.post('/api/system/restart');
+        await api.post('/system/restart');
         alert('Запрос на перезагрузку отправлен. Страница обновится автоматически через 3 секунды.');
         setTimeout(() => window.location.reload(), 3000);
       } catch (error) {
@@ -20,7 +20,7 @@ const System = () => {
 
   const handleRunParser = async () => {
     try {
-      await api.post('/api/system/run-parser');
+      await api.post('/system/run-parser');
       alert('Парсер успешно запущен вручную.');
     } catch (error) {
       alert('Ошибка при запуске парсера.');
@@ -31,7 +31,7 @@ const System = () => {
     if (!message.trim()) return;
     setSending(true);
     try {
-      await api.post('/api/broadcast', { message });
+      await api.post('/broadcast', { message });
       alert('Рассылка успешно запущена!');
       setMessage('');
     } catch (error) {
