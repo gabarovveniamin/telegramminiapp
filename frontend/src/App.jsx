@@ -24,15 +24,24 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let attempts = 0;
     const initTg = () => {
+      attempts++;
       const tgApp = window.Telegram?.WebApp;
+      
+      // If we have initData, we are definitely in Telegram
       if (tgApp && tgApp.initData) {
         tgApp.ready();
         tgApp.expand();
         setTg(tgApp);
         setIsLoading(false);
-      } else {
-        // Continue waiting for initData
+      } 
+      // If we've tried for 3 seconds and no data, we are probably in a normal browser
+      else if (attempts > 30) { 
+        setIsLoading(false);
+        setIsAuthorized(false); 
+      }
+      else {
         setTimeout(initTg, 100);
       }
     };
