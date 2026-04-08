@@ -108,6 +108,20 @@ const UserDetails = () => {
           </button>
         </div>
       </div>
+
+      <div className="glass" style={{ padding: '20px', marginTop: '20px' }}>
+        <h3 style={{ marginBottom: '15px', color: 'var(--primary)' }}>История активности</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {user.history && user.history.map((item, idx) => (
+            <div key={idx} style={{ padding: '10px', borderLeft: '2px solid var(--primary)', background: 'rgba(255,255,255,0.03)' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>{item.event}</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                {new Date(item.date).toLocaleString()}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };

@@ -1,7 +1,8 @@
 import os
 import signal
+import httpx
 from typing import List, Optional, Dict, Any
-from fastapi import FastAPI, Header, HTTPException, Depends, Body, APIRouter
+from fastapi import FastAPI, Header, HTTPException, Depends, Body, APIRouter, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
@@ -39,8 +40,8 @@ async def get_stats(db: Database = Depends(get_db)):
     return await db.get_stats()
 
 @router.get("/users")
-async def get_users(db: Database = Depends(get_db)):
-    return await db.get_users()
+async def get_users(search: Optional[str] = None, db: Database = Depends(get_db)):
+    return await db.get_users(search)
 
 @router.get("/users/{user_id}")
 async def get_user(user_id: int, db: Database = Depends(get_db)):
@@ -61,17 +62,57 @@ async def toggle_ban(user_id: int, db: Database = Depends(get_db)):
 
 @router.post("/system/restart")
 async def restart_bot():
-    import os, signal
     # This will kill the current process, and systemd will restart it
     os.kill(os.getpid(), signal.SIGTERM)
     return {"status": "restarting"}
 
+async def send_telegram_broadcast(message: str, db: Database):
+    user_ids = await db.get_all_user_ids()
+    bot_token = settings.BOT_TOKEN
+    base_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    
+    async with httpx.AsyncClient() as client:
+        for user_id in user_ids:
+            try:
+                await client.post(base_url, json={
+                    "chat_id": user_id,
+                    "text": message,
+                    "parse_mode": "HTML"
+                }, timeout=5.0)
+            except Exception as e:
+                print(f"Failed to send to {user_id}: {e}")
+
 @router.post("/broadcast")
-async def broadcast(data: Dict[str, Any], db: Database = Depends(get_db)):
+async def broadcast(
+    background_tasks: BackgroundTasks, 
+    data: Dict[str, Any], 
+    db: Database = Depends(get_db)
+):
     message = data.get("message")
     if not message:
         raise HTTPException(status_code=400, detail="Сообщение не может быть пустым")
-    # Placeholder for actual broadcast logic
-    return {"status": "success", "sent_to": 0}
+    background_tasks.add_task(send_telegram_broadcast, message, db)
+    return {"status": "success", "message": "Рассылка запущена"}
+
+@router.get("/system/logs")
+async def get_logs():
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["journalctl", "-u", "tgadmin", "-n", "100", "--no-pager"], 
+            capture_output=True, text=True
+        )
+        return {"logs": result.stdout}
+    except Exception as e:
+        return {"logs": f"Error fetching logs: {str(e)}"}
+
+@router.get("/config")
+async def get_config():
+    # Placeholder for dynamic config
+    return {
+        "subscription_price_1_star": 50,
+        "subscription_price_3_stars": 120,
+        "maintenance_mode": False
+    }
 
 app.include_router(router)

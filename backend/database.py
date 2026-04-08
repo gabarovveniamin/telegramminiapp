@@ -17,15 +17,22 @@ class Database:
             "total_broadcasts": 0
         }
 
-    async def get_users(self) -> List[Dict[str, Any]]:
-        # Using user_id as id and username as fallback for first_name
-        rows = await self.pool.fetch("""
-            SELECT user_id as id, username, created_at 
-            FROM users 
-            ORDER BY created_at DESC 
-            LIMIT 100
-        """)
-        print(f"DEBUG_DB: fetched {len(rows)} users")
+    async def get_users(self, search: Optional[str] = None) -> List[Dict[str, Any]]:
+        query = "SELECT user_id as id, username, created_at FROM users"
+        params = []
+        
+        if search:
+            if search.isdigit():
+                query += " WHERE user_id = $1"
+                params.append(int(search))
+            else:
+                query += " WHERE username ILIKE $1"
+                params.append(f"%{search}%")
+        
+        query += " ORDER BY created_at DESC LIMIT 100"
+        
+        rows = await self.pool.fetch(query, *params)
+        print(f"DEBUG_DB: fetched {len(rows)} users (search='{search}')")
         return [dict(r) for r in rows]
 
     async def get_user(self, user_id: int) -> Optional[Dict[str, Any]]:
@@ -35,9 +42,25 @@ class Database:
                    EXISTS(SELECT 1 FROM users WHERE user_id = u.user_id AND categories IS NULL) as is_banned
             FROM users u WHERE u.user_id = $1
         """, user_id)
-        return dict(row) if row else None
+        if not row:
+            return None
+        
+        user_data = dict(row)
+        # Add basic "history" based on existing data
+        user_data['history'] = [
+            {"date": user_data['created_at'], "event": "Registration"},
+        ]
+        if user_data['is_premium']:
+            user_data['history'].append({"date": datetime.now(), "event": "Premium Active"})
+            
+        return user_data
+
+    async def get_all_user_ids(self) -> List[int]:
+        rows = await self.pool.fetch("SELECT user_id FROM users")
+        return [r['user_id'] for r in rows]
 
     async def toggle_premium(self, user_id: int):
+# ...
         # Implementation depends on how your subscriptions table works
         # This is a generic logic: if exists - delete, if not - add
         exists = await self.pool.fetchval("SELECT 1 FROM subscriptions WHERE user_id = $1", user_id)

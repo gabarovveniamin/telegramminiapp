@@ -41,9 +41,51 @@ const System = () => {
     }
   };
 
+  const [logs, setLogs] = useState('');
+  const [loadingLogs, setLoadingLogs] = useState(false);
+
+  const fetchLogs = async () => {
+    setLoadingLogs(true);
+    try {
+      const response = await api.get('/system/logs');
+      setLogs(response.data.logs);
+    } catch (error) {
+      console.error('Error fetching logs:', error);
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLogs();
+    const interval = setInterval(fetchLogs, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div className="fade-in">
       <h2 style={{ marginBottom: '20px' }}>Управление системой</h2>
+
+      <div className="glass card" style={{ padding: '20px', marginBottom: '20px' }}>
+        <h3 style={{ marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <Settings size={20} color="var(--primary)" />
+          Параметры бота
+        </h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div className="flex-between">
+            <span style={{ fontSize: '0.9rem' }}>Цена (1 звезда):</span>
+            <span style={{ fontWeight: 'bold' }}>50 ₽</span>
+          </div>
+          <div className="flex-between">
+            <span style={{ fontSize: '0.9rem' }}>Цена (3 звезды):</span>
+            <span style={{ fontWeight: 'bold' }}>120 ₽</span>
+          </div>
+          <div className="flex-between">
+            <span style={{ fontSize: '0.9rem' }}>Тех-обслуживание:</span>
+            <span style={{ color: 'var(--success)' }}>ВЫКЛ</span>
+          </div>
+        </div>
+      </div>
 
       <div className="glass card" style={{ padding: '20px', marginBottom: '20px' }}>
         <h3 style={{ marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -93,6 +135,32 @@ const System = () => {
         >
           {sending ? 'Отправляем...' : 'Начать рассылку'}
         </button>
+      </div>
+
+      <div className="glass card" style={{ padding: '20px', marginBottom: '20px' }}>
+        <div className="flex-between" style={{ marginBottom: '15px' }}>
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Power size={20} color="var(--primary)" />
+            Консоль логов
+          </h3>
+          <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.7rem' }} onClick={fetchLogs}>
+            Обновить
+          </button>
+        </div>
+        <pre style={{ 
+          background: '#000', 
+          color: '#0f0', 
+          padding: '10px', 
+          borderRadius: '8px', 
+          fontSize: '0.75rem', 
+          height: '250px', 
+          overflowY: 'auto',
+          margin: 0,
+          whiteSpace: 'pre-wrap',
+          fontFamily: 'monospace'
+        }}>
+          {loadingLogs && !logs ? 'Загрузка...' : logs || 'Логов пока нет'}
+        </pre>
       </div>
 
       <div className="glass card" style={{ padding: '20px', border: '1px solid rgba(248, 113, 113, 0.2)' }}>
