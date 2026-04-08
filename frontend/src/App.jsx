@@ -26,6 +26,16 @@ function App() {
   useEffect(() => {
     let attempts = 0;
     const initTg = () => {
+      api.interceptors.request.use((config) => {
+        const tg = window.Telegram?.WebApp;
+        if (tg?.initData) {
+          config.headers['X-Telegram-Init-Data'] = tg.initData;
+        } else {
+          console.warn('API call without Telegram initData');
+        }
+        return config;
+      });
+      
       attempts++;
       const tgApp = window.Telegram?.WebApp;
       
@@ -65,12 +75,18 @@ function App() {
 
   if (!isAuthorized) {
     const userId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id || 'неизвестен';
+    const initDataExists = !!window.Telegram?.WebApp?.initData;
+    
     return (
       <div className="flex-center fade-in" style={{ height: '100vh', padding: '20px', textAlign: 'center' }}>
         <div className="glass" style={{ padding: '30px' }}>
           <h2 style={{ color: 'var(--danger)', marginBottom: '10px' }}>Доступ ограничен</h2>
           <p style={{ color: 'var(--text-secondary)' }}>
-            Эта панель управления доступна только администраторам.<br/>Ваш ID: <b>{userId}</b>
+            Ваш ID: <b>{userId}</b><br/>
+            Связь с Telegram: <b>{initDataExists ? 'ЕСТЬ' : 'НЕТ'}</b>
+          </p>
+          <p style={{ fontSize: '0.8em', marginTop: '10px', opacity: 0.7 }}>
+            Если связи нет, попробуйте перезайти в бота.
           </p>
           <button onClick={() => window.Telegram?.WebApp?.close()} className="btn btn-primary" style={{ marginTop: '20px', width: '100%' }}>
             Закрыть
