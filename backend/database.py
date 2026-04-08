@@ -54,4 +54,9 @@ class Database:
 async def get_db_pool():
     import os
     from config import settings
-    return await asyncpg.create_pool(settings.DATABASE_URL)
+    # Set small pool size to avoid TooManyConnectionsError on limited DB tiers
+    return await asyncpg.create_pool(
+        settings.DATABASE_URL,
+        min_size=1,
+        max_size=5
+    )
