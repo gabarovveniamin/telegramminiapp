@@ -33,25 +33,39 @@ class Database:
 
     # --- Stats ---
     async def get_stats(self) -> Dict[str, Any]:
-        async with self.pool.acquire() as conn:
-            user_count = (await conn.fetchrow("SELECT COUNT(*) AS c FROM users"))["c"]
-            premium_count = (await conn.fetchrow(
-                "SELECT COUNT(*) AS c FROM subscriptions WHERE is_active = TRUE AND (expires_at IS NULL OR expires_at > NOW())"
-            ))["c"]
-            stars_collected = (await conn.fetchrow("SELECT SUM(stars_paid) AS s FROM subscriptions"))["s"] or 0
-            tracked_count = (await conn.fetchrow("SELECT COUNT(*) AS c FROM tracked_items"))["c"]
-            
+        total_users = await self.pool.fetchval("SELECT COUNT(*) FROM users")
+        active_premium = await self.pool.fetchval("SELECT COUNT(*) FROM subscriptions")
+        # We'll use a placeholder for these if they don't exist in DB yet
         return {
-            "total_users": user_count,
-            "active_premium": premium_count,
-            "stars_collected": stars_collected,
-            "items_tracked": tracked_count
+            "total_users": total_users or 0,
+            "active_premium": active_premium or 0,
+            "daily_new_users": 0,
+            "total_broadcasts": 0
         }
 
     # --- User Management ---
+    async def get_users(self):
+        # Join with subscriptions if needed, but for now just get users
+        rows = await self.pool.fetch("""
+            SELECT user_id as id, username, first_name, created_at 
+            FROM users 
+            ORDER BY created_at DESC 
+            LIMIT 100
+        """)
+        # If first_name is missing in your DB, we'll use username
+        return [dict(r) for r in rows]
+
+    async def get_user(self, user_id: int):
+        row = await self.pool.fetchrow("""
+            SELECT u.user_id as id, u.username, u.created_at, 
+                   EXISTS(SELECT 1 FROM subscriptions s WHERE s.user_id = u.user_id) as is_premium
+            FROM users u WHERE u.user_id = $1
+        """, user_id)
+        return dict(row) if row else None
+
     async def search_users(self, query: str = "", limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
         sql = """
-            SELECT u.user_id, u.username, u.created_at, u.discount_threshold, 
+            SELECT u.user_id as id, u.username, u.created_at, u.discount_threshold, 
                    s.is_active, s.expires_at, s.stars_paid
             FROM users u
             LEFT JOIN subscriptions s ON u.user_id = s.user_id

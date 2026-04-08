@@ -1,41 +1,64 @@
 :root {
-  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: dark;
-  --bg-color: #0f172a;
-  --card-bg: rgba(30, 41, 59, 0.7);
   --primary: #38bdf8;
-  --primary-hover: #0ea5e9;
-  --text-primary: #f8fafc;
+  --bg: #0f172a;
+  --card-bg: rgba(30, 41, 59, 0.7);
+  --text: #f8fafc;
   --text-secondary: #94a3b8;
-  --accent: #818cf8;
-  --danger: #ef4444;
-  --success: #22c55e;
-  --border: rgba(255, 255, 255, 0.1);
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --success: #4ade80;
+  --danger: #f87171;
+  --warning: #fbbf24;
 }
 
 body {
   margin: 0;
-  display: flex;
-  min-width: 320px;
-  min-height: 100vh;
-  background-color: var(--bg-color);
-  background-image: 
-    radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.15) 0px, transparent 50%),
-    radial-gradient(at 100% 100%, rgba(129, 140, 248, 0.15) 0px, transparent 50%);
-  color: var(--text-primary);
-  overflow-x: hidden;
+  padding: 0;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: 80px;
 }
 
-#root {
-  width: 100%;
+.app-container {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.glass {
+  background: var(--card-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+}
+
+.card {
+  padding: 16px;
+  margin-bottom: 12px;
+  transition: transform 0.2s;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 400px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.flex {
+  display: flex;
+  align-items: center;
+}
+
+.flex-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .bottom-nav {
@@ -43,9 +66,9 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 65px;
-  background: rgba(30, 41, 59, 0.8);
-  backdrop-filter: blur(15px);
+  height: 70px;
+  background: rgba(15, 23, 42, 0.9);
+  backdrop-filter: blur(20px);
   display: flex;
   justify-content: space-around;
   align-items: center;
@@ -62,13 +85,11 @@ body {
   text-decoration: none;
   color: var(--text-secondary);
   font-size: 11px;
-  transition: all 0.2s;
   flex: 1;
 }
 
-.nav-item.active, .nav-item:active {
+.nav-item.active {
   color: var(--primary);
-  transform: translateY(-2px);
 }
 
 .nav-item span {
