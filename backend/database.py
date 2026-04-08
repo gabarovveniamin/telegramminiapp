@@ -35,7 +35,7 @@ class Database:
     async def get_stats(self) -> Dict[str, Any]:
         total_users = await self.pool.fetchval("SELECT COUNT(*) FROM users")
         active_premium = await self.pool.fetchval("SELECT COUNT(*) FROM subscriptions")
-        # We'll use a placeholder for these if they don't exist in DB yet
+        print(f"DB DEBUG: total_users={total_users}, active_premium={active_premium}")
         return {
             "total_users": total_users or 0,
             "active_premium": active_premium or 0,
@@ -45,13 +45,13 @@ class Database:
 
     # --- User Management ---
     async def get_users(self):
-        # We use username as first_name because your DB doesn't have first_name column
         rows = await self.pool.fetch("""
             SELECT user_id as id, username, created_at 
             FROM users 
             ORDER BY created_at DESC 
             LIMIT 100
         """)
+        print(f"DB DEBUG: fetched {len(rows)} users")
         return [dict(r) for r in rows]
 
     async def get_user(self, user_id: int):
