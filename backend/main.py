@@ -1,14 +1,24 @@
 import os
-import subprocess
-from fastapi import FastAPI, Depends, HTTPException, Body
+import signal
+from typing import List, Optional, Dict, Any
+from fastapi import FastAPI, Header, HTTPException, Depends, Body
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Optional, List
+from contextlib import asynccontextmanager
 
-from config import settings
-from database import db
-from auth import get_current_admin
+from .database import Database, get_db_pool
+from .config import settings
+from .auth import get_current_admin
 
-app = FastAPI(title="Telegram Bot Admin API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    pool = await get_db_pool()
+    app.state.db = Database(pool)
+    yield
+    # Shutdown
+    await pool.close()
+
+app = FastAPI(title="TG Admin API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -18,29 +28,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.on_event("startup")
-async def startup():
-    await db.connect()
+async def get_db():
+    return app.state.db
 
-@app.on_event("shutdown")
-async def shutdown():
-    await db.disconnect()
-
-# --- Dashboard ---
-@app.get("/api/stats", dependencies=[Depends(get_current_admin)])
-async def get_stats():
+@app.get("/api/stats")
+async def get_stats(db: Database = Depends(get_db)):
     return await db.get_stats()
 
-# --- Users ---
-@app.get("/api/users", dependencies=[Depends(get_current_admin)])
-async def get_users(query: str = "", limit: int = 50, offset: int = 0):
-    return await db.search_users(query, limit, offset)
+@app.get("/api/users")
+async def get_users(db: Database = Depends(get_db)):
+    return await db.get_users()
 
-@app.get("/api/users/{user_id}", dependencies=[Depends(get_current_admin)])
-async def get_user(user_id: int):
-    user = await db.get_user_details(user_id)
+@app.get("/api/users/{user_id}")
+async def get_user(user_id: int, db: Database = Depends(get_db)):
+    user = await db.get_user(user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
     return user
 
 @app.post("/api/users/{user_id}/premium")
@@ -55,25 +58,14 @@ async def toggle_ban(user_id: int, db: Database = Depends(get_db)):
 
 @app.post("/api/system/restart")
 async def restart_bot():
-    try:
-        # Note: This requires the user running the FastAPI app to have sudo/systemctl privileges
-        # Alternatively, use a flag file that the bot monitors
-        subprocess.run(["sudo", "systemctl", "restart", "tgbot"], check=True)
-        return {"status": "bot restart triggered"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    # This will kill the process, systemd picks it up
+    os.kill(os.getpid(), signal.SIGTERM)
+    return {"status": "restarting"}
 
-@app.post("/api/broadcast", dependencies=[Depends(get_current_admin)])
-async def broadcast_message(message: str = Body(..., embed=True)):
-    # In a real app, you'd trigger a task in the bot or a background queue
-    # For now, we'll return a placeholder
-    return {"status": "broadcast started", "message": message}
-
-# Manual Trigger (Placeholder)
-@app.post("/api/system/trigger-parser", dependencies=[Depends(get_current_admin)])
-async def trigger_parser():
-    return {"status": "parsing cycle triggered"}
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+@app.post("/api/broadcast")
+async def broadcast(data: Dict[str, Any], db: Database = Depends(get_db)):
+    message = data.get("message")
+    if not message:
+        raise HTTPException(status_code=400, detail="Сообщение не может быть пустым")
+    # Placeholder for actual broadcast logic
+    return {"status": "success", "sent_to": 0}
