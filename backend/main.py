@@ -5,9 +5,9 @@ from fastapi import FastAPI, Header, HTTPException, Depends, Body
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from .database import Database, get_db_pool
-from .config import settings
-from .auth import get_current_admin
+from database import Database, get_db_pool
+from config import settings
+from auth import get_current_admin
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

@@ -53,5 +53,5 @@ class Database:
 
 async def get_db_pool():
     import os
-    from .config import settings
+    from config import settings
     return await asyncpg.create_pool(settings.DATABASE_URL)
