@@ -8,7 +8,9 @@ class Database:
 
     async def get_stats(self) -> Dict[str, Any]:
         total_users = await self.pool.fetchval("SELECT COUNT(*) FROM users")
-        active_premium = await self.pool.fetchval("SELECT COUNT(*) FROM subscriptions")
+        active_premium = await self.pool.fetchval(
+            "SELECT COUNT(*) FROM subscriptions WHERE is_active = TRUE AND (expires_at IS NULL OR expires_at > NOW())"
+        )
         print(f"DEBUG_DB: stats -> total={total_users}, premium={active_premium}")
         return {
             "total_users": total_users or 0,
@@ -38,7 +40,7 @@ class Database:
     async def get_user(self, user_id: int) -> Optional[Dict[str, Any]]:
         row = await self.pool.fetchrow("""
             SELECT u.user_id as id, u.username, u.created_at,
-                   s.user_id IS NOT NULL as is_premium,
+                   COALESCE(s.is_active = TRUE AND (s.expires_at IS NULL OR s.expires_at > NOW()), FALSE) as is_premium,
                    s.expires_at as premium_expires_at,
                    EXISTS(SELECT 1 FROM users WHERE user_id = u.user_id AND categories IS NULL) as is_banned
             FROM users u
@@ -67,24 +69,26 @@ class Database:
         if days is not None:
             expires_at = datetime.now(timezone.utc) + timedelta(days=days)
 
-        # Ensure the expires_at column exists — run once on first use
         try:
             await self.pool.execute("""
-                INSERT INTO subscriptions (user_id, expires_at)
-                VALUES ($1, $2)
-                ON CONFLICT (user_id) DO UPDATE SET expires_at = EXCLUDED.expires_at
+                INSERT INTO subscriptions (user_id, is_active, expires_at, activated_at, updated_at)
+                VALUES ($1, TRUE, $2, NOW(), NOW())
+                ON CONFLICT (user_id) DO UPDATE SET 
+                    is_active = TRUE,
+                    expires_at = EXCLUDED.expires_at,
+                    activated_at = COALESCE(subscriptions.activated_at, NOW()),
+                    updated_at = NOW()
             """, user_id, expires_at)
-        except Exception:
-            # Fallback: table might not have expires_at column yet
-            await self.pool.execute("""
-                INSERT INTO subscriptions (user_id)
-                VALUES ($1)
-                ON CONFLICT (user_id) DO NOTHING
-            """, user_id)
+        except Exception as e:
+            print(f"DEBUG_DB: Error on grant_premium: {e}")
 
     async def revoke_premium(self, user_id: int):
         """Revoke premium from user."""
-        await self.pool.execute("DELETE FROM subscriptions WHERE user_id = $1", user_id)
+        await self.pool.execute("""
+            UPDATE subscriptions 
+            SET is_active = FALSE, expires_at = NULL, updated_at = NOW() 
+            WHERE user_id = $1
+        """, user_id)
 
     async def toggle_premium(self, user_id: int):
         """Legacy toggle — kept for backward compat."""
