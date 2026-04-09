@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { UserCircle, Shield, ShieldAlert, Calendar, ArrowLeft, Crown, X, Clock, Infinity } from 'lucide-react';
+import { UserCircle, Shield, ShieldAlert, Calendar, ArrowLeft, Crown, X, Clock } from 'lucide-react';
 import api from '../api';
 
 // ─── Duration options for premium grant ───────────────────────────────────────
@@ -11,18 +11,31 @@ const DURATION_OPTIONS = [
   { label: '6 месяцев', days: 180, icon: '🗂️' },
   { label: '1 год',     days: 365, icon: '🎯' },
   { label: 'Навсегда',  days: null, icon: '♾️' },
+  { label: 'Свой срок', days: 'custom', icon: '✏️' },
 ];
 
 // ─── Premium Grant Modal ───────────────────────────────────────────────────────
-const PremiumModal = ({ userId, onClose, onSuccess }) => {
-  const [selected, setSelected] = useState(null);
+const PremiumModal = ({ userId, currentExpiry, onClose, onSuccess }) => {
+  // undefined = nothing chosen yet; null = forever; number = days; 'custom' = custom input
+  const [selected, setSelected] = useState(undefined);
+  const [customDays, setCustomDays] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Effective days to send: null=forever, number=days, undefined=not chosen
+  const effectiveDays =
+    selected === 'custom'
+      ? customDays !== '' && Number(customDays) > 0
+        ? Number(customDays)
+        : undefined
+      : selected;
+
+  const isReady = effectiveDays !== undefined;
+
   const handleGrant = async () => {
-    if (selected === undefined) return;
+    if (!isReady) return;
     setLoading(true);
     try {
-      await api.post(`/users/${userId}/premium/grant`, { days: selected });
+      await api.post(`/users/${userId}/premium/grant`, { days: effectiveDays });
       onSuccess();
       onClose();
     } catch {
@@ -32,6 +45,16 @@ const PremiumModal = ({ userId, onClose, onSuccess }) => {
     }
   };
 
+  const getConfirmLabel = () => {
+    if (loading) return 'Выдаём...';
+    if (effectiveDays === null) return '♾️ Выдать Навсегда';
+    if (effectiveDays !== undefined) {
+      const opt = DURATION_OPTIONS.find(o => o.days === selected);
+      return `👑 Выдать на ${opt ? opt.label : effectiveDays + ' д.'}`;
+    }
+    return '👑 Подтвердить';
+  };
+
   return (
     <div style={styles.overlay} onClick={onClose}>
       <div style={styles.modal} onClick={e => e.stopPropagation()} className="fade-in">
@@ -39,14 +62,25 @@ const PremiumModal = ({ userId, onClose, onSuccess }) => {
         <div style={styles.modalHeader}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Crown size={22} color="#fbbf24" />
-            <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#fff' }}>Выдать Премиум</h3>
+            <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#fff' }}>Управление Премиумом</h3>
           </div>
           <button onClick={onClose} style={styles.closeBtn}>
             <X size={18} />
           </button>
         </div>
 
-        <p style={{ margin: '0 0 16px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+        {currentExpiry !== undefined && (
+          <div style={styles.currentStatus}>
+            <Clock size={14} />
+            <span>
+              {currentExpiry
+                ? `Активен до: ${new Date(currentExpiry).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                : 'Активен: Навсегда ♾️'}
+            </span>
+          </div>
+        )}
+
+        <p style={{ margin: '0 0 14px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
           Выберите срок действия подписки:
         </p>
 
@@ -64,23 +98,44 @@ const PremiumModal = ({ userId, onClose, onSuccess }) => {
                 }}
               >
                 <span style={{ fontSize: '1.4rem' }}>{opt.icon}</span>
-                <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{opt.label}</span>
+                <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>{opt.label}</span>
               </button>
             );
           })}
         </div>
 
+        {/* Custom days input */}
+        {selected === 'custom' && (
+          <div style={styles.customWrap}>
+            <input
+              type="number"
+              min="1"
+              max="3650"
+              placeholder="Количество дней"
+              value={customDays}
+              onChange={e => setCustomDays(e.target.value)}
+              style={styles.customInput}
+              autoFocus
+            />
+            {customDays && Number(customDays) > 0 && (
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '6px' }}>
+                📅 Истекает: {new Date(Date.now() + Number(customDays) * 86400000).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Confirm */}
         <button
           onClick={handleGrant}
-          disabled={selected === undefined || loading}
+          disabled={!isReady || loading}
           style={{
             ...styles.confirmBtn,
-            opacity: (selected === undefined || loading) ? 0.5 : 1,
-            cursor: (selected === undefined || loading) ? 'not-allowed' : 'pointer',
+            opacity: (!isReady || loading) ? 0.45 : 1,
+            cursor: (!isReady || loading) ? 'not-allowed' : 'pointer',
           }}
         >
-          {loading ? 'Выдаём...' : selected === null ? '♾️ Выдать Навсегда' : `👑 Выдать на ${DURATION_OPTIONS.find(o => o.days === selected)?.label}`}
+          {getConfirmLabel()}
         </button>
       </div>
     </div>
@@ -140,6 +195,17 @@ const UserDetails = () => {
     return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
   };
 
+  const getDaysRemaining = (dateStr) => {
+    if (!dateStr) return null;
+    const diff = new Date(dateStr) - Date.now();
+    const days = Math.ceil(diff / 86400000);
+    if (days <= 0) return '⚠️ Истёк';
+    if (days === 1) return '1 день осталось';
+    if (days < 7) return `${days} дн. осталось`;
+    if (days < 30) return `${Math.ceil(days / 7)} нед. осталось`;
+    return `~${Math.round(days / 30)} мес. осталось`;
+  };
+
   if (loading) return <div className="flex-center" style={{ height: '100vh' }}>Загрузка...</div>;
   if (!user)   return <div className="flex-center" style={{ height: '100vh' }}>Пользователь не найден</div>;
 
@@ -149,6 +215,7 @@ const UserDetails = () => {
       {showPremiumModal && (
         <PremiumModal
           userId={id}
+          currentExpiry={user.is_premium ? user.premium_expires_at : undefined}
           onClose={() => setShowPremiumModal(false)}
           onSuccess={fetchUser}
         />
@@ -192,10 +259,17 @@ const UserDetails = () => {
                 {user.is_premium ? 'Premium ✓' : 'Обычный'}
               </div>
               {user.is_premium && (
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                  <Clock size={11} style={{ display: 'inline', marginRight: '3px' }} />
-                  До: {formatExpiry(user.premium_expires_at)}
-                </div>
+                <>
+                  <div style={{ fontSize: '0.75rem', color: '#fbbf24', marginTop: '3px', fontWeight: 600 }}>
+                    {user.premium_expires_at
+                      ? getDaysRemaining(user.premium_expires_at)
+                      : '♾️ Навсегда'}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '1px' }}>
+                    <Clock size={10} style={{ display: 'inline', marginRight: '3px' }} />
+                    До: {formatExpiry(user.premium_expires_at)}
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -335,21 +409,33 @@ const styles = {
     padding: '6px',
     display: 'flex',
   },
+  currentStatus: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    fontSize: '0.8rem',
+    color: '#fbbf24',
+    background: 'rgba(251,191,36,0.08)',
+    border: '1px solid rgba(251,191,36,0.2)',
+    borderRadius: '10px',
+    padding: '8px 12px',
+    marginBottom: '14px',
+  },
   durationGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)',
-    gap: '10px',
-    marginBottom: '18px',
+    gridTemplateColumns: 'repeat(4, 1fr)',
+    gap: '8px',
+    marginBottom: '14px',
   },
   durationBtn: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '6px',
-    padding: '14px 8px',
+    gap: '5px',
+    padding: '11px 6px',
     background: 'rgba(255,255,255,0.04)',
     border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: '14px',
+    borderRadius: '12px',
     color: '#fff',
     cursor: 'pointer',
     transition: 'all 0.18s ease',
@@ -358,6 +444,20 @@ const styles = {
     background: 'rgba(251,191,36,0.15)',
     border: '1px solid rgba(251,191,36,0.6)',
     boxShadow: '0 0 14px rgba(251,191,36,0.2)',
+  },
+  customWrap: {
+    marginBottom: '14px',
+  },
+  customInput: {
+    width: '100%',
+    padding: '12px 14px',
+    background: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(251,191,36,0.4)',
+    borderRadius: '12px',
+    color: '#fff',
+    fontSize: '1rem',
+    outline: 'none',
+    boxSizing: 'border-box',
   },
   confirmBtn: {
     width: '100%',
