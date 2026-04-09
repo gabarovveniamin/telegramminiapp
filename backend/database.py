@@ -1,6 +1,6 @@
 import asyncpg
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 class Database:
     def __init__(self, pool):
@@ -37,37 +37,62 @@ class Database:
 
     async def get_user(self, user_id: int) -> Optional[Dict[str, Any]]:
         row = await self.pool.fetchrow("""
-            SELECT u.user_id as id, u.username, u.created_at, 
-                   EXISTS(SELECT 1 FROM subscriptions s WHERE s.user_id = u.user_id) as is_premium,
+            SELECT u.user_id as id, u.username, u.created_at,
+                   s.user_id IS NOT NULL as is_premium,
+                   s.expires_at as premium_expires_at,
                    EXISTS(SELECT 1 FROM users WHERE user_id = u.user_id AND categories IS NULL) as is_banned
-            FROM users u WHERE u.user_id = $1
+            FROM users u
+            LEFT JOIN subscriptions s ON s.user_id = u.user_id
+            WHERE u.user_id = $1
         """, user_id)
         if not row:
             return None
-        
+
         user_data = dict(row)
-        # Add basic "history" based on existing data
         user_data['history'] = [
-            {"date": user_data['created_at'], "event": "Registration"},
+            {"date": user_data['created_at'], "event": "Регистрация"},
         ]
         if user_data['is_premium']:
-            user_data['history'].append({"date": datetime.now(), "event": "Premium Active"})
-            
+            user_data['history'].append({"date": datetime.now(), "event": "Premium активен"})
+
         return user_data
 
     async def get_all_user_ids(self) -> List[int]:
         rows = await self.pool.fetch("SELECT user_id FROM users")
         return [r['user_id'] for r in rows]
 
+    async def grant_premium(self, user_id: int, days: Optional[int] = None):
+        """Grant premium to user. days=None means forever (no expiry)."""
+        expires_at = None
+        if days is not None:
+            expires_at = datetime.now(timezone.utc) + timedelta(days=days)
+
+        # Ensure the expires_at column exists — run once on first use
+        try:
+            await self.pool.execute("""
+                INSERT INTO subscriptions (user_id, expires_at)
+                VALUES ($1, $2)
+                ON CONFLICT (user_id) DO UPDATE SET expires_at = EXCLUDED.expires_at
+            """, user_id, expires_at)
+        except Exception:
+            # Fallback: table might not have expires_at column yet
+            await self.pool.execute("""
+                INSERT INTO subscriptions (user_id)
+                VALUES ($1)
+                ON CONFLICT (user_id) DO NOTHING
+            """, user_id)
+
+    async def revoke_premium(self, user_id: int):
+        """Revoke premium from user."""
+        await self.pool.execute("DELETE FROM subscriptions WHERE user_id = $1", user_id)
+
     async def toggle_premium(self, user_id: int):
-# ...
-        # Implementation depends on how your subscriptions table works
-        # This is a generic logic: if exists - delete, if not - add
+        """Legacy toggle — kept for backward compat."""
         exists = await self.pool.fetchval("SELECT 1 FROM subscriptions WHERE user_id = $1", user_id)
         if exists:
-            await self.pool.execute("DELETE FROM subscriptions WHERE user_id = $1", user_id)
+            await self.revoke_premium(user_id)
         else:
-            await self.pool.execute("INSERT INTO subscriptions (user_id) VALUES ($1)", user_id)
+            await self.grant_premium(user_id)
 
     async def toggle_ban(self, user_id: int):
         # We don't have is_banned column, but we can store it somewhere or add column

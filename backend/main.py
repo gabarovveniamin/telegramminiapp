@@ -50,6 +50,23 @@ async def get_user(user_id: int, db: Database = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Пользователь не найден")
     return user
 
+@router.post("/users/{user_id}/premium/grant")
+async def grant_premium(
+    user_id: int,
+    data: Dict[str, Any] = Body(default={}),
+    db: Database = Depends(get_db)
+):
+    """Grant premium. Body: {days: int | null}  —  null/missing = forever."""
+    days = data.get("days")  # None means forever
+    await db.grant_premium(user_id, days)
+    return {"status": "success", "days": days}
+
+@router.post("/users/{user_id}/premium/revoke")
+async def revoke_premium(user_id: int, db: Database = Depends(get_db)):
+    await db.revoke_premium(user_id)
+    return {"status": "success"}
+
+# Legacy toggle endpoint kept for backward compat
 @router.post("/users/{user_id}/premium")
 async def toggle_premium(user_id: int, db: Database = Depends(get_db)):
     await db.toggle_premium(user_id)
